@@ -35,8 +35,8 @@ logger.setLevel(logging.ERROR)
 """
     Redis Conneciton Pool Helpers
 """
-POOL = redis.ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=1)
-Q = Queue(connection=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=1))
+POOL = redis.ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=0)
+Q = Queue(connection=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0))
 
 def hSet(key, field, value):
     my_server = redis.Redis(connection_pool=POOL)
@@ -104,7 +104,7 @@ class ChallengeMonitor(Monitor):
     def step(self, *args, **kwargs):
         # TODO: The next line is done manually...
         # observation, reward, done, info = super(ChallengeMonitor, self).step(*args, **kwargs)
-        
+
         self._before_step(args[0])
         observation, reward, done, info = self.env.step(args[0], project = False)
         done = self._after_step(observation, reward, done, info)
@@ -168,7 +168,8 @@ class Envs(object):
         self.env_info[instance_id][key] = value
 
     def _env_housekeeping(self, participant_id=False):
-        for instance_id in self.env_info.keys():
+        instance_ids = list(self.env_info.keys())
+        for instance_id in instance_ids:
             # Clean up all envs which have lives past their TTL
             if time.time() - self.env_info[instance_id]['create_time'] > ENV_TTL:
                 self._remove_env(instance_id)
@@ -191,7 +192,7 @@ class Envs(object):
             if not status:
                 raise InvalidUsage(message)
             try:
-                osim_envs = {'Run': ProstheticsEnv}
+                osim_envs = {'ProstheticsEnv': ProstheticsEnv}
                 if env_id in osim_envs.keys():
                     env = osim_envs[env_id](visualize=False)
                 else:
@@ -216,7 +217,7 @@ class Envs(object):
             rPush("CROWDAI::SUBMISSION::%s::actions"%(instance_id), "start")
             rPush("CROWDAI::SUBMISSION::%s::observations"%(instance_id), "start")
             rPush("CROWDAI::SUBMISSION::%s::rewards"%(instance_id), "start")
-
+            print("Created Environment : ", instance_id)
             return instance_id
         else:
             raise InvalidUsage("We are running at full capacity at the moment. Please try again in a few minutes.")
@@ -226,7 +227,7 @@ class Envs(object):
 
     def reset(self, instance_id):
         env = self._lookup_env(instance_id)
-        obs = env.reset(project = False) #difficulty=2, seed=SEED_MAP[env.trial-1])
+        obs = env.reset(project=False) #difficulty=2, seed=SEED_MAP[env.trial-1])
         env.trial += 1
         if env.trial == len(SEED_MAP)+1:
             obs = None
@@ -234,10 +235,14 @@ class Envs(object):
         rPush("CROWDAI::SUBMISSION::%s::actions"%(instance_id), "reset")
         rPush("CROWDAI::SUBMISSION::%s::observations"%(instance_id), "reset")
         rPush("CROWDAI::SUBMISSION::%s::rewards"%(instance_id), "reset")
-        rPush("CROWDAI::SUBMISSION::%s::observations"%(instance_id),repr(obs))
-        return env.observation_space.to_jsonable(obs)
+        rPush("CROWDAI::SUBMISSION::%s::observations"%(instance_id),repr(env.observation_space.to_jsonable(obs)))
+        print("Reset environment {}".format(instance_id))
+        observation = env.observation_space.to_jsonable(obs)
+        return observation
 
     def step(self, instance_id, action, render):
+        if DEBUG_MODE:
+            print("Attempting Step for {}".format(instance_id))
         env = self._lookup_env(instance_id)
         if isinstance( action, six.integer_types ):
             nice_action = action
