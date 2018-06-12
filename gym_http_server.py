@@ -341,9 +341,9 @@ class Envs(object):
             submission_id = hGet("CROWDAI::INSTANCE_ID_MAP", instance_id)
             submission_id = int(submission_id.decode('utf-8'))
             try:
-                crowdai_api = CROWDAI_API(CROWDAI_TOKEN)
-                crowdai_api.authenticate_participant(api_key)
-                submission = crowdai_api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
+                api = CROWDAI_API(CROWDAI_TOKEN)
+                api.authenticate_participant(api_key)
+                submission = api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
                 submission.grading_status = "graded"
                 submission.message = "Graded Successfully !"
                 submission.score = SCORE
@@ -441,16 +441,16 @@ def env_create():
 
     if not DISABLE_VERIFICATION:
         try:
-            crowdai_api = CROWDAI_API(CROWDAI_TOKEN)
-            crowdai_api.authenticate_participant(api_key)
-            submission = crowdai_api.create_submission(CROWDAI_CHALLENGE_CLIENT_NAME)
+            api = CROWDAI_API(CROWDAI_TOKEN)
+            api.authenticate_participant(api_key)
+            submission = api.create_submission(CROWDAI_CHALLENGE_CLIENT_NAME)
         except Exception as e:
             error_message = str(e)
             response = jsonify(message=error_message)
             response.status_code = 400
             return response
 
-        participant_id = crowdai_api.participant_id
+        participant_id = api.participant_id
     else:
         participant_id = str(0)
 
