@@ -54,7 +54,6 @@ dependencies:
     - meld3==1.0.2
     - nose2==0.6.5
     - numpy==1.14.4
-    - osim-rl==2.0.0
     - pyglet==1.2.4
     - python-gitlab==1.4.0
     - python-json-logger==0.1.8

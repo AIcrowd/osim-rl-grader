@@ -10,19 +10,20 @@ from utils import *
 import requests
 import json
 
-REDIS_HOST = str(sys.argv[1])
-REDIS_PORT = str(sys.argv[2])
-SUBMISSION_ID = str(sys.argv[3])
-CROWDAI_TOKEN = str(sys.argv[4])
-CROWDAI_URL = str(sys.argv[5])
-CROWDAI_CHALLENGE_ID = str(sys.argv[6])
+
+
+REDIS_HOST = sys.argv[1]
+REDIS_PORT = sys.argv[2]
+SUBMISSION_ID = sys.argv[3]
+CROWDAI_TOKEN = sys.argv[4]
+CROWDAI_URL = sys.argv[5]
+CROWDAI_CHALLENGE_ID = sys.argv[6]
 S3_ACCESS_KEY = sys.argv[7]
 S3_SECRET_KEY = sys.argv[8]
 S3_BUCKET = sys.argv[9]
 SEED_MAP = sys.argv[10]
 RENDER_LOGO = int(sys.argv[11]) == 1
 
-SEED_MAP = [int(x) for x in SEED_MAP.split(",")]
 
 os.environ["CROWDAI_SUBMISSION_ID"] = SUBMISSION_ID
 
@@ -31,7 +32,7 @@ print("Current Working Directory : ", os.path.dirname(os.path.realpath(__file__)
 
 CWD = os.path.dirname(os.path.realpath(__file__))
 
-r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=1)
+r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0)
 
 ACTIONS_QUERY = "CROWDAI::SUBMISSION::%s::actions" % SUBMISSION_ID
 
@@ -45,6 +46,7 @@ import json
 ACTIONS = []
 
 for _action in actions:
+		_action = _action.decode("utf-8")
 		if _action == "start":
 				pass
 		elif _action == "reset":
@@ -74,7 +76,8 @@ REWARDS = []
 for idx, trial in enumerate(ACTIONS):
 	if idx >= len(SEED_MAP):
 		break
-		observation = env.reset(difficulty=2, seed=SEED_MAP[idx-1])
+	#observation = env.reset(difficulty=2, seed=SEED_MAP[idx-1])
+	observation = env.reset(project=False)
 	OBSERVATIONS.append("reset")
 	REWARDS.append("reset")
 	OBSERVATIONS.append(observation)
@@ -117,6 +120,7 @@ os.system("ffmpeg -y -i "+CWD+"/"+SUBMISSION_ID+".mp4 -vf scale=268:200 -c:a cop
 
 print("Cleaning up frames directory....")
 shutil.rmtree(CWD+"/../"+SUBMISSION_ID)
+
 #Upload to S3
 print("Uploading GIF to S3....")
 FILE=CWD+"/"+SUBMISSION_ID+".gif"
@@ -149,12 +153,13 @@ headers = {
 }
 
 crowdai_internal_submission_id = r.hget("CROWDAI::INSTANCE_ID_MAP", SUBMISSION_ID)
+crowdai_internal_submission_id = crowdai_internal_submission_id.decode('utf-8')
 # TODO: Make CROWDAI_URL configurable
-CROWDAI_URL = "https://www.crowdai.org/api/external_graders/"+str(crowdai_internal_submission_id)
+CROWDAI_URL = "https://www.crowdai.org/api/external_graders/{}".format(crowdai_internal_submission_id)
 
 _payload = {
-	"media_large" : "challenge_"+str(CROWDAI_CHALLENGE_ID)+"/"+SUBMISSION_ID+".mp4",
-	"media_thumbnail" : "challenge_"+str(CROWDAI_CHALLENGE_ID)+"/"+SUBMISSION_ID+"_thumb.mp4",
+	"media_large" : "challenge_{}/{}.mp4".format(CROWDAI_CHALLENGE_ID, SUBMISSION_ID),
+	"media_thumbnail" : "challenge_{}/{}_thumb.mp4".format(CROWDAI_CHALLENGE_ID, SUBMISSION_ID),
 	"media_content_type" : "video/mp4"
 }
 r = requests.patch(CROWDAI_URL, params=_payload, headers=headers,verify=False)
