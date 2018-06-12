@@ -65,30 +65,31 @@ if __name__ == '__main__':
 	if data=="instance_id":
 		instance_id = _arg
 	else:
-		r = redis.Redis(REDIS_HOST, REDIS_PORT, db=1)
+		r = redis.Redis(REDIS_HOST, REDIS_PORT, db=0)
 		instance_id_map = r.hgetall("CROWDAI::INSTANCE_ID_MAP")
-		print("Available Instance IDs for this submission are : ")
+		print("Available Instance IDs for this submission are : ", instance_id_map)
 		found = False
 		for _key in instance_id_map:
-			if instance_id_map[_key] == _arg:
+
+			if int(instance_id_map[_key]) == i:
 				print(_key)
 				found = True
-				
+
 				if show_action_map:
 					ACTIONS_QUERY = "CROWDAI::SUBMISSION::%s::trial_1_actions" % _key
 					actions = r.lrange(ACTIONS_QUERY, 0, 10000)
-					print(actions)		
+					print(actions)
 		if found == False:
 			print("Sorry no instance_ids found for this submission...")
 		else:
 			print("Please execute again with the instance_id as a parameter")
 		exit(0)
 
-	# TO-DO: Handle case of one instance_id mapping to multiple submission ids	
+	# TO-DO: Handle case of one instance_id mapping to multiple submission ids
 	internal_submission_id = str(sys.argv[1])
 	try:
 		submission_id = internal_submission_id
 		worker(submission_id)
 	except:
 		print("Unable to find data for submission id..." + internal_submission_id)
-	#worker(sys.argv[1])	
+	#worker(sys.argv[1])
