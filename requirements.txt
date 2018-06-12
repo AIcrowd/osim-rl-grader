@@ -18,3 +18,4 @@ six==1.10.0
 tinys3==0.1.12
 Werkzeug==0.11.15
 -e git+https://github.com/stanfordnmbl/osim-rl#egg=osim_rl
+crowdai-api==0.1.1.dev8

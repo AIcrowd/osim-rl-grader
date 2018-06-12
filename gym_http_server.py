@@ -13,6 +13,8 @@ from osim.env import ProstheticsEnv
 from gym.wrappers.time_limit import TimeLimit
 from gym import error
 
+from crowdai_api import API as CROWDAI_API
+
 from localsettings import CROWDAI_TOKEN, CROWDAI_URL, CROWDAI_CHALLENGE_CLIENT_NAME
 from localsettings import REDIS_HOST, REDIS_PORT
 from localsettings import DEBUG_MODE, DISABLE_VERIFICATION
@@ -201,7 +203,7 @@ class Envs(object):
             except gym.error.Error:
                 raise InvalidUsage("Attempted to look up malformed environment ID '{}'".format(env_id))
 
-            instance_id = participant_id + "___" + str(uuid.uuid4().hex)[:10]
+            instance_id = str(participant_id) + "___" + str(uuid.uuid4().hex)[:10]
             # TODO: that's an ugly way to control the program...
             try:
                 self.env_close(instance_id)
@@ -335,27 +337,23 @@ class Envs(object):
 
         if not DEBUG_MODE:
             api_key = hGet("CROWDAI::API_KEY_MAP", instance_id.split("___")[0] )
-            headers = {
-                'Accept': 'application/vnd.api+json',
-                'Content-Type': 'application/vnd.api+json',
-                'Authorization': 'Token token={}'.format(CROWDAI_TOKEN)
-            }
-            params = {
-                'challenge_client_name': CROWDAI_CHALLENGE_CLIENT_NAME,
-                'api_key' : api_key,
-                'grading_status': 'graded',
-                'score': SCORE
-            }
-            r = requests.post(CROWDAI_URL, headers=headers, params=params)
-            if r.status_code == 202:
-                crowdai_submission_id = json.loads(r.text)["submission_id"]
+            api_key = api_key.decode('utf-8')
+            submission_id = hGet("CROWDAI::INSTANCE_ID_MAP", instance_id)
+            submission_id = int(submission_id.decode('utf-8'))
+            try:
+                crowdai_api = CROWDAI_API(CROWDAI_TOKEN)
+                crowdai_api.authenticate_participant(api_key)
+                submission = crowdai_api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
+                submission.grading_status = "graded"
+                submission.message = "Graded Successfully !"
+                submission.score = SCORE
+                submission.meta = {}
+                submission.meta["grader"] = "live_grader"
+                submission.update()
                 rPush("CROWDAI::SUBMITTED_Q", instance_id)
-                hSet("CROWDAI::INSTANCE_ID_MAP", instance_id, crowdai_submission_id)
-                Q.enqueue(worker, instance_id, timeout=3600)
-            else:
-                # Keep a track of the error response
-                print(r.text)
-
+            except Exception as e:
+                print("Unable to update score on crowdAI")
+                print(str(e))
         return SCORE
 
     def env_close(self, instance_id):
@@ -414,7 +412,6 @@ import http
 def patch_send():
     old_send= http.client.HTTPConnection.send
     def new_send( self, data ):
-        print(data)
         return old_send(self, data) #return is not necessary, but never hurts, in case the library is changed
     http.client.HTTPConnection.send= new_send
 
@@ -422,9 +419,7 @@ def patch_send():
 
 def create_env_after_validation(envs, env_id, participant_id):
     instance_id = envs.create(env_id, participant_id)
-    response = jsonify(instance_id=instance_id)
-    response.status_code = 200
-    return response
+    return instance_id
 
 ########## API route definitions ##########
 @app.route('/v1/envs/', methods=['POST'])
@@ -444,31 +439,40 @@ def env_create():
     api_key = get_required_param(request.get_json(), 'token').strip()
     version = get_required_param(request.get_json(), 'version')
 
-    # Validate client version
-    if version != pkg_resources.get_distribution("osim-rl").version:
-        response = jsonify(message = "Wrong version. Please update to the new version. Read more on https://github.com/stanfordnmbl/osim-rl/docs")
-        response.status_code = 400
-        return response
+    if not DISABLE_VERIFICATION:
+        try:
+            crowdai_api = CROWDAI_API(CROWDAI_TOKEN)
+            crowdai_api.authenticate_participant(api_key)
+            submission = crowdai_api.create_submission(CROWDAI_CHALLENGE_CLIENT_NAME)
+        except Exception as e:
+            error_message = str(e)
+            response = jsonify(message=error_message)
+            response.status_code = 400
+            return response
 
-    # Validate API Key
-    headers = {
-        'Accept': 'application/vnd.api+json',
-        'Content-Type': 'application/vnd.api+json',
-        'Authorization': 'Token token={}'.format(CROWDAI_TOKEN)}
-    r = requests.get(CROWDAI_URL + api_key, headers=headers)
-
-    if r.status_code != 200 and not DISABLE_VERIFICATION:
-        response = jsonify(message = "Unable to authenticate API Key.")
-        response.status_code = 400
-        return response
-    if r.status_code == 200:
-        payload = json.loads(r.text)
-        participant_id = str(payload['participant_id'])
-    if DISABLE_VERIFICATION:
+        participant_id = crowdai_api.participant_id
+    else:
         participant_id = str(0)
 
+    # Validate client version
+    if version != pkg_resources.get_distribution("osim-rl").version:
+        error_message="Wrong client version. Please update to the new version. Read more on https://github.com/stanfordnmbl/osim-rl/docs"
+        response = jsonify(message = error_message)
+        response.status_code = 400
+        if not DISABLE_VERIFICATION:
+            submission.grading_status="failed"
+            submission.message = error_message
+            submission.update()
+        return response
+
+    instance_id = create_env_after_validation(envs, env_id, participant_id)
     hSet("CROWDAI::API_KEY_MAP", participant_id, api_key)
-    response = create_env_after_validation(envs, env_id, participant_id)
+    if not DISABLE_VERIFICATION:
+        hSet("CROWDAI::INSTANCE_ID_MAP", instance_id, submission.id)
+
+    response = jsonify(instance_id=instance_id)
+    response.status_code = 200
+
     return response
 
 #@app.route('/v1/envs/', methods=['GET'])
