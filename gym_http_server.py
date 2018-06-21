@@ -198,10 +198,10 @@ class Envs(object):
                 if env_id in osim_envs.keys():
                     env = osim_envs[env_id](visualize=False)
                 else:
-                    raise InvalidUsage("Attempted to look up malformed environment ID '{}'".format(env_id))
+                    raise InvalidUsage("Attempted to look up malformed environment ID '{}'. Did you pass `env_id='ProstheticsEnv'` in `client.env_create` ?".format(env_id))
 
             except gym.error.Error:
-                raise InvalidUsage("Attempted to look up malformed environment ID '{}'".format(env_id))
+                raise InvalidUsage("Attempted to look up malformed environment ID '{}'. Did you pass `env_id='ProstheticsEnv'` in `client.env_create` ?".format(env_id))
 
             instance_id = str(participant_id) + "___" + str(uuid.uuid4().hex)[:10]
             # TODO: that's an ugly way to control the program...
