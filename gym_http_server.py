@@ -160,8 +160,22 @@ class Envs(object):
         try:
             del self.envs[instance_id]
             del self.env_info[instance_id]
+            # Mark the relevant submission as failed
+            submission_id = hGet("CROWDAI::INSTANCE_ID_MAP", instance_id)
+            submission_id = int(submission_id.decode('utf-8'))
         except KeyError:
             raise InvalidUsage('Instance_id {} unknown or expired.'.format(instance_id))
+
+        # Update crowdAI Submission
+        try:            
+            api = CROWDAI_API(CROWDAI_TOKEN)
+            api.authenticate_participant(api_key)
+            submission = api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
+            submission.grading_status = "failed"
+            submission.message = "Timelimit Exceeded"
+            submission.update()
+        except Exception as e:
+            logger.error("Unable to update submission on crowdAI : {}".format(str(e)))    
 
     def _update_env_info(self, instance_id, key, value):
         if instance_id not in self.env_info.keys():
