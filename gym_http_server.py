@@ -169,6 +169,7 @@ class Envs(object):
         # Update crowdAI Submission
         try:
             api_key = hGet("CROWDAI::API_KEY_MAP", instance_id.split("___")[0] )
+            api_key = api_key.decode('utf-8')
             api = CROWDAI_API(CROWDAI_TOKEN)
             api.authenticate_participant(api_key)
             submission = api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
