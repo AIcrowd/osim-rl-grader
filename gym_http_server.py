@@ -167,7 +167,8 @@ class Envs(object):
             raise InvalidUsage('Instance_id {} unknown or expired.'.format(instance_id))
 
         # Update crowdAI Submission
-        try:            
+        try:
+            api_key = hGet("CROWDAI::API_KEY_MAP", instance_id.split("___")[0] )
             api = CROWDAI_API(CROWDAI_TOKEN)
             api.authenticate_participant(api_key)
             submission = api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
