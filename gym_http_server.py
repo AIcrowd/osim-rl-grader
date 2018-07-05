@@ -173,9 +173,10 @@ class Envs(object):
             api = CROWDAI_API(CROWDAI_TOKEN)
             api.authenticate_participant(api_key)
             submission = api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
-            submission.grading_status = "failed"
-            submission.message = "Timelimit Exceeded"
-            submission.update()
+            if submission.grading_status != "graded":
+                submission.grading_status = "failed"
+                submission.message = "Timelimit Exceeded"
+                submission.update()
         except Exception as e:
             logger.error("Unable to update submission on crowdAI : {}".format(str(e)))    
 
@@ -500,7 +501,6 @@ def env_create():
     hSet("CROWDAI::API_KEY_MAP", participant_id, api_key)
     if not DISABLE_VERIFICATION:
         hSet("CROWDAI::INSTANCE_ID_MAP", instance_id, submission.id)
-
     response = jsonify(instance_id=instance_id)
     response.status_code = 200
 
