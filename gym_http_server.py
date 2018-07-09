@@ -34,6 +34,8 @@ import logging
 logger = logging.getLogger('werkzeug')
 logger.setLevel(logging.ERROR)
 
+import traceback
+
 """
     Redis Conneciton Pool Helpers
 """
@@ -65,6 +67,7 @@ def generate_ttl_message(ttl):
     return _response
 
 def respectSubmissionLimit(_key):
+    return (True, "")
     r = redis.Redis(connection_pool=POOL)
     submission_count = r.get(_key)
     if submission_count == None:
@@ -175,10 +178,11 @@ class Envs(object):
             submission = api.get_submission(CROWDAI_CHALLENGE_CLIENT_NAME, submission_id)
             if submission.grading_status != "graded":
                 submission.grading_status = "failed"
-                submission.message = "Timelimit Exceeded"
+                submission.message = "Timelimit Exceeded / Error during evaluation"
                 submission.update()
         except Exception as e:
-            logger.error("Unable to update submission on crowdAI : {}".format(str(e)))    
+            logger.error("Unable to update submission on crowdAI : {}".format(str(e)))
+            logger.error(traceback.format_exc())
 
     def _update_env_info(self, instance_id, key, value):
         if instance_id not in self.env_info.keys():
@@ -263,10 +267,20 @@ class Envs(object):
         if DEBUG_MODE:
             print("Attempting Step for {}".format(instance_id))
         env = self._lookup_env(instance_id)
+
         if isinstance( action, six.integer_types ):
             nice_action = action
         else:
             nice_action = np.array(action)
+
+        # Validate submitted action 
+        try:
+            serialized_action = repr(nice_action.tolist())
+            deserialized_action = np.array(eval(serialized_action))
+        except Exception as e:
+            logger.error(traceback.format_exc())
+            raise Exception("Malformed Action Receieved : {}".format(serialized_action))
+
         if render:
             env.render()
 
@@ -369,6 +383,7 @@ class Envs(object):
                 submission.update()
                 rPush("CROWDAI::SUBMITTED_Q", instance_id)
             except Exception as e:
+                logger.error(traceback.format_exc())
                 print("Unable to update score on crowdAI")
                 print(str(e))
         return SCORE
@@ -471,6 +486,7 @@ def env_create():
             error_message = str(e)
             response = jsonify(message=error_message)
             response.status_code = 400
+            logger.error(traceback.format_exc())
             return response
 
         participant_id = api.participant_id
@@ -490,13 +506,13 @@ def env_create():
     try:
         instance_id = create_env_after_validation(envs, env_id, participant_id)
     except Exception as e:
-        error_message = repr(e)
-        print(error_message)
+        error_message = str(e)
         submission.grading_status = "failed"
         submission.message = error_message
         submission.update()
         response = jsonify(message=error_message)
         response.status_code = 404
+        logger.error(traceback.format_exc())
         return response
     hSet("CROWDAI::API_KEY_MAP", participant_id, api_key)
     if not DISABLE_VERIFICATION:
