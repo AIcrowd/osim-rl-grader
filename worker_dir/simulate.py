@@ -23,7 +23,7 @@ S3_SECRET_KEY = sys.argv[8]
 S3_BUCKET = sys.argv[9]
 SEED_MAP = sys.argv[10]
 RENDER_LOGO = int(sys.argv[11]) == 1
-
+DIFFICULTY = int(sys.argv[12])
 
 os.environ["CROWDAI_SUBMISSION_ID"] = SUBMISSION_ID
 
@@ -39,7 +39,7 @@ ACTIONS_QUERY = "CROWDAI::SUBMISSION::%s::actions" % SUBMISSION_ID
 actions = r.lrange(ACTIONS_QUERY, 0, 10000)
 
 ## Generate Visualization
-env = ProstheticsEnv(True)
+env = ProstheticsEnv(True, difficulty=DIFFICULTY)
 
 import json
 
@@ -77,7 +77,7 @@ for idx, trial in enumerate(ACTIONS):
 	if idx >= len(SEED_MAP):
 		break
 	#observation = env.reset(difficulty=2, seed=SEED_MAP[idx-1])
-	observation = env.reset(project=False)
+	observation = env.reset(project=False, difficulty=DIFFICULTY)
 	OBSERVATIONS.append("reset")
 	REWARDS.append("reset")
 	OBSERVATIONS.append(observation)

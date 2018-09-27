@@ -11,7 +11,7 @@ import time
 import sys
 import redis
 
-def worker(submission_id):
+def worker(submission_id, difficulty):
     submission_id = str(submission_id)
     print("Processing : " + submission_id)
     COMMAND = ""
@@ -28,6 +28,7 @@ def worker(submission_id):
     COMMAND += S3_BUCKET + " "
     COMMAND += ",".join([str(x) for x in SEED_MAP]) + " "
     COMMAND += str(RENDER_LOGO)
+    COMMAND += str(difficulty)
     #Execute Command
     result_count = 0
     while True:
@@ -89,7 +90,10 @@ if __name__ == '__main__':
 	internal_submission_id = str(sys.argv[1])
 	try:
 		submission_id = internal_submission_id
-		worker(submission_id)
+		# Obtain difficulty level
+		r = redis.Redis(REDIS_HOST, REDIS_PORT, db=0)
+		difficulty = r.hget("CROWDAI_DIFFICULTY_MAP", internal_submission_id).decode('utf-8')
+		worker(submission_id, difficulty)
 	except:
 		print("Unable to find data for submission id..." + internal_submission_id)
 	#worker(sys.argv[1])
