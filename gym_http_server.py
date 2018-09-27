@@ -216,7 +216,7 @@ class Envs(object):
             return False
 
     def create(self, env_id, participant_id):
-        global crowdai_env_difficulty
+        crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 0))
         if self.can_create_env(participant_id):
             status, message = respectSubmissionLimit("CROWDAI::SUBMISSION_COUNT::%s" % participant_id)
             if not status:
@@ -257,8 +257,9 @@ class Envs(object):
         return dict([(instance_id, env.spec.id) for (instance_id, env) in self.envs.items()])
 
     def reset(self, instance_id):
+        crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 0))
         env = self._lookup_env(instance_id)
-        obs = env.reset(project=False,  difficulty=crowdai_env_difficulty) #difficulty=2, seed=SEED_MAP[env.trial-1])
+        obs = env.reset(project=False)#,  difficulty=crowdai_env_difficulty) #difficulty=2, seed=SEED_MAP[env.trial-1])
         env.trial += 1
         if env.trial == len(SEED_MAP)+1:
             obs = None
@@ -481,8 +482,6 @@ def env_create():
         used in future API calls to identify the environment to be
         manipulated
     """
-    global crowdai_round_id
-    global crowdai_env_difficulty
     env_id = get_required_param(request.get_json(), 'env_id')
     api_key = get_required_param(request.get_json(), 'token').strip()
     version = get_required_param(request.get_json(), 'version')
@@ -492,6 +491,8 @@ def env_create():
             api = CROWDAI_API(CROWDAI_TOKEN)
             api.authenticate_participant(api_key)
             # try to see if an env variable specifies the round. else default
+            crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 0))
+            crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', False)
             if crowdai_round_id:
                 crowdai_round_id = int(crowdai_round_id)
             submission = api.create_submission(CROWDAI_CHALLENGE_CLIENT_NAME, round_id=crowdai_round_id)

@@ -77,7 +77,7 @@ for idx, trial in enumerate(ACTIONS):
 	if idx >= len(SEED_MAP):
 		break
 	#observation = env.reset(difficulty=2, seed=SEED_MAP[idx-1])
-	observation = env.reset(project=False, difficulty=DIFFICULTY)
+	observation = env.reset(project=False) #difficulty=DIFFICULTY)
 	OBSERVATIONS.append("reset")
 	REWARDS.append("reset")
 	OBSERVATIONS.append(observation)
