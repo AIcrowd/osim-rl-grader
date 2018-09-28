@@ -56,35 +56,44 @@ def worker(submission_id, difficulty):
 show_action_map = False
 if __name__ == '__main__':
 	_arg = sys.argv[1]
-	data = "instance_id"
-	try:
-		i = int(_arg)
-		data = "submission_id"
-	except:
-		pass
-
-	if data=="instance_id":
-		instance_id = _arg
-	else:
+	if _arg == "worker":
 		r = redis.Redis(REDIS_HOST, REDIS_PORT, db=0)
-		instance_id_map = r.hgetall("CROWDAI::INSTANCE_ID_MAP")
-		print("Available Instance IDs for this submission are : ", instance_id_map)
-		found = False
-		for _key in instance_id_map:
+		while True:
+			Q_name, instance_id = r.blpop("CROWDAI::SUBMITTED_Q")
+			instance_id = instance_id.decode('utf-8')
+                        submission_id = r.hget("CROWDAI::INSTANCE_ID_MAP", instance_id).decode('utf-8')
+                        difficulty = r.hget("CROWDAI_DIFFICULTY_MAP", submission_id).decode('utf-8')
+			worker(instance_id, difficulty=difficulty)
+	else:
+		data = "instance_id"
+		try:
+			i = int(_arg)
+			data = "submission_id"
+		except:
+			pass
 
-			if int(instance_id_map[_key]) == i:
-				print(_key)
-				found = True
-
-				if show_action_map:
-					ACTIONS_QUERY = "CROWDAI::SUBMISSION::%s::trial_1_actions" % _key
-					actions = r.lrange(ACTIONS_QUERY, 0, 10000)
-					print(actions)
-		if found == False:
-			print("Sorry no instance_ids found for this submission...")
+		if data=="instance_id":
+			instance_id = _arg
 		else:
-			print("Please execute again with the instance_id as a parameter")
-		exit(0)
+			r = redis.Redis(REDIS_HOST, REDIS_PORT, db=0)
+			instance_id_map = r.hgetall("CROWDAI::INSTANCE_ID_MAP")
+			print("Available Instance IDs for this submission are : ", instance_id_map)
+			found = False
+			for _key in instance_id_map:
+
+				if int(instance_id_map[_key]) == i:
+					print(_key)
+					found = True
+
+					if show_action_map:
+						ACTIONS_QUERY = "CROWDAI::SUBMISSION::%s::trial_1_actions" % _key
+						actions = r.lrange(ACTIONS_QUERY, 0, 10000)
+						print(actions)
+			if found == False:
+				print("Sorry no instance_ids found for this submission...")
+			else:
+				print("Please execute again with the instance_id as a parameter")
+			exit(0)
 
 	# TO-DO: Handle case of one instance_id mapping to multiple submission ids
 	internal_submission_id = str(sys.argv[1])
