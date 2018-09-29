@@ -61,8 +61,8 @@ if __name__ == '__main__':
 		while True:
 			Q_name, instance_id = r.blpop("CROWDAI::SUBMITTED_Q")
 			instance_id = instance_id.decode('utf-8')
-                        submission_id = r.hget("CROWDAI::INSTANCE_ID_MAP", instance_id).decode('utf-8')
-                        difficulty = r.hget("CROWDAI_DIFFICULTY_MAP", submission_id).decode('utf-8')
+			submission_id = r.hget("CROWDAI::INSTANCE_ID_MAP", instance_id).decode('utf-8')
+			difficulty = r.hget("CROWDAI_DIFFICULTY_MAP", submission_id).decode('utf-8')
 			worker(instance_id, difficulty=difficulty)
 	else:
 		data = "instance_id"
