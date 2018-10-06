@@ -27,7 +27,7 @@ def worker(submission_id, difficulty):
     COMMAND += S3_SECRET_KEY + " "
     COMMAND += S3_BUCKET + " "
     COMMAND += ",".join([str(x) for x in SEED_MAP]) + " "
-    COMMAND += str(RENDER_LOGO)
+    COMMAND += str(RENDER_LOGO) + " "
     COMMAND += str(difficulty)
     #Execute Command
     result_count = 0
