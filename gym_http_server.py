@@ -41,6 +41,7 @@ import traceback
 crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 0))
 crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', False)
 CROWDAI_SERVE_PORT = int(os.getenv("CROWDAI_SERVE_PORT", 5000))
+LOCAL_TEST = True
 
 """
     Redis Conneciton Pool Helpers
@@ -49,16 +50,19 @@ POOL = redis.ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=0)
 Q = Queue(connection=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0))
 
 def hSet(key, field, value):
-    my_server = redis.Redis(connection_pool=POOL)
-    my_server.hset(key, field, value)
+    if not LOCAL_TEST:
+        my_server = redis.Redis(connection_pool=POOL)
+        my_server.hset(key, field, value)
 
 def hGet(key, field):
-    my_server = redis.Redis(connection_pool=POOL)
-    return my_server.hget(key, field)
+    if not LOCAL_TEST:
+        my_server = redis.Redis(connection_pool=POOL)
+        return my_server.hget(key, field)
 
 def rPush(key, value):
-    my_server = redis.Redis(connection_pool=POOL)
-    my_server.rpush(key, value)
+    if not LOCAL_TEST:
+        my_server = redis.Redis(connection_pool=POOL)
+        my_server.rpush(key, value)
 
 def generate_ttl_message(ttl):
     m, s = divmod(ttl, 60)
@@ -117,6 +121,7 @@ class ChallengeMonitor(Monitor):
         # observation, reward, done, info = super(ChallengeMonitor, self).step(*args, **kwargs)
 
         self._before_step(args[0])
+        print(args[0])
         observation, reward, done, info = self.env.step(args[0], project = False)
         done = self._after_step(observation, reward, done, info)
 
@@ -166,6 +171,8 @@ class Envs(object):
             raise InvalidUsage('Instance_id {} unknown or expired.'.format(instance_id))
 
     def _remove_env(self, instance_id):
+        if LOCAL_TEST:
+            return
         try:
             del self.envs[instance_id]
             del self.env_info[instance_id]
@@ -365,9 +372,9 @@ class Envs(object):
         rPush("CROWDAI::SUBMISSION::%s::observations"%(instance_id), "close")
         rPush("CROWDAI::SUBMISSION::%s::rewards"%(instance_id), "close")
 
-        rPush("CROWDAI::SUBMISSION::%s::actions"%(instance_id), "CROWDAI_REPLAY_DATA_VERSION:"+CROWDAI_REPLAY_DATA_VERSION)
-        rPush("CROWDAI::SUBMISSION::%s::observations"%(instance_id), "CROWDAI_REPLAY_DATA_VERSION:"+CROWDAI_REPLAY_DATA_VERSION)
-        rPush("CROWDAI::SUBMISSION::%s::rewards"%(instance_id), "CROWDAI_REPLAY_DATA_VERSION:"+CROWDAI_REPLAY_DATA_VERSION)
+        rPush("CROWDAI::SUBMISSION::%s::actions"%(instance_id), "CROWDAI_REPLAY_DATA_VERSION:"+str(CROWDAI_REPLAY_DATA_VERSION))
+        rPush("CROWDAI::SUBMISSION::%s::observations"%(instance_id), "CROWDAI_REPLAY_DATA_VERSION:"+str(CROWDAI_REPLAY_DATA_VERSION))
+        rPush("CROWDAI::SUBMISSION::%s::rewards"%(instance_id), "CROWDAI_REPLAY_DATA_VERSION:"+str(CROWDAI_REPLAY_DATA_VERSION))
 
         SCORE = env.total
         SCORE = SCORE * 1.0 / len(SEED_MAP)
@@ -375,7 +382,7 @@ class Envs(object):
         print("CLOSED %s, %f" % (instance_id, SCORE))
         print("Submitting to crowdAI.org as Stanford...")
 
-        if not DEBUG_MODE:
+        if not DEBUG_MODE and not LOCAL_TEST:
             api_key = hGet("CROWDAI::API_KEY_MAP", instance_id.split("___")[0] )
             api_key = api_key.decode('utf-8')
             submission_id = hGet("CROWDAI::INSTANCE_ID_MAP", instance_id)
@@ -468,6 +475,11 @@ def create_env_after_validation(envs, env_id, participant_id):
     instance_id = envs.create(env_id, participant_id)
     return instance_id
 
+class MockSubmission:
+    id ="0"
+    def update(self):
+        return
+
 ########## API route definitions ##########
 @app.route('/v1/envs/', methods=['POST'])
 def env_create():
@@ -495,8 +507,11 @@ def env_create():
             crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', False)
             if crowdai_round_id:
                 crowdai_round_id = int(crowdai_round_id)
-            submission = api.create_submission(CROWDAI_CHALLENGE_CLIENT_NAME, round_id=crowdai_round_id)
-            hSet("CROWDAI_DIFFICULTY_MAP", str(submission.id), str(crowdai_env_difficulty))
+            if not LOCAL_TEST:
+                submission = api.create_submission(CROWDAI_CHALLENGE_CLIENT_NAME, round_id=crowdai_round_id)
+                hSet("CROWDAI_DIFFICULTY_MAP", str(submission.id), str(crowdai_env_difficulty))
+            else:
+                submission = MockSubmission()
         except Exception as e:
             error_message = str(e)
             response = jsonify(message=error_message)
@@ -563,6 +578,9 @@ def env_reset(instance_id):
         - observation: the initial observation of the space
     """
     observation = envs.reset(instance_id)
+    print(observation)
+    if observation:
+        observation["v_tgt_field"] = observation["v_tgt_field"].tolist()
     return jsonify(observation = observation)
 
 @app.route('/v1/envs/<instance_id>/step/', methods=['POST'])
@@ -585,6 +603,7 @@ def env_step(instance_id):
     action = get_required_param(json, 'action')
     render = get_optional_param(json, 'render', False)
     [obs_jsonable, reward, done, info] = envs.step(instance_id, action, render)
+    obs_jsonable["v_tgt_field"] = obs_jsonable["v_tgt_field"].tolist()
     return jsonify(observation = obs_jsonable,
                     reward = reward, done = done, info = info)
 
