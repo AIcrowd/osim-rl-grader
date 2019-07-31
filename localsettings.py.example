@@ -12,6 +12,8 @@ REDIS_PORT=6379
 REDIS_PASSWORD="yout-redis-password"
 DISPLAY=":100"
 
+LOCAL_TEST=True
+
 S3_ACCESS_KEY="ACCESS_ID_FOR_AWS_USER"
 S3_SECRET_KEY="SECRET_KEY_FOR_AWS_USER"
 S3_BUCKET="Bucket Name where the GIFs will be uploaded to"

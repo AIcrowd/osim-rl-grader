@@ -23,6 +23,7 @@ from localsettings import SEED_MAP
 from localsettings import CROWDAI_REPLAY_DATA_VERSION
 from localsettings import SUBMISSION_WINDOW_TTL, MAX_SUBMISSIONS_PER_WINDOW
 from localsettings import ENV_TTL, MAX_PARALLEL_ENVS
+from localsettings import LOCAL_TEST
 
 from crowdai_worker import worker
 
@@ -41,7 +42,7 @@ import traceback
 crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 2))
 crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', 29)
 CROWDAI_SERVE_PORT = int(os.getenv("CROWDAI_SERVE_PORT", 5000))
-LOCAL_TEST = True
+
 
 """
     Redis Conneciton Pool Helpers
