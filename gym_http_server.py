@@ -17,7 +17,7 @@ import os
 from crowdai_api import API as CROWDAI_API
 
 from localsettings import CROWDAI_TOKEN, CROWDAI_URL, CROWDAI_CHALLENGE_CLIENT_NAME
-from localsettings import REDIS_HOST, REDIS_PORT
+from localsettings import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
 from localsettings import DEBUG_MODE, DISABLE_VERIFICATION
 from localsettings import SEED_MAP
 from localsettings import CROWDAI_REPLAY_DATA_VERSION
@@ -38,16 +38,20 @@ logger.setLevel(logging.ERROR)
 import traceback
 
 
-crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 0))
-crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', False)
+crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 2))
+crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', 29)
 CROWDAI_SERVE_PORT = int(os.getenv("CROWDAI_SERVE_PORT", 5000))
 LOCAL_TEST = True
 
 """
     Redis Conneciton Pool Helpers
 """
-POOL = redis.ConnectionPool(host=REDIS_HOST, port=REDIS_PORT, db=0)
-Q = Queue(connection=redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=0))
+POOL = redis.ConnectionPool(
+            host=REDIS_HOST, 
+            port=REDIS_PORT, 
+            db=0, 
+            password=REDIS_PASSWORD)
+Q = Queue(connection=redis.Redis(connection_pool=POOL))
 
 def hSet(key, field, value):
     if not LOCAL_TEST:
@@ -122,7 +126,10 @@ class ChallengeMonitor(Monitor):
 
         self._before_step(args[0])
         print(args[0])
-        observation, reward, done, info = self.env.step(args[0], project = False)
+        observation, reward, done, info = self.env.step(
+                                                args[0], 
+                                                project=True, 
+                                                obs_as_dict=True)
         done = self._after_step(observation, reward, done, info)
 
         self.total = self.total + reward
@@ -264,9 +271,9 @@ class Envs(object):
         return dict([(instance_id, env.spec.id) for (instance_id, env) in self.envs.items()])
 
     def reset(self, instance_id):
-        crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 0))
+        crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 2))
         env = self._lookup_env(instance_id)
-        obs = env.reset(project=False)#,  difficulty=crowdai_env_difficulty) #difficulty=2, seed=SEED_MAP[env.trial-1])
+        obs = env.reset(project=True, obs_as_dict=True)#,  difficulty=crowdai_env_difficulty) #difficulty=2, seed=SEED_MAP[env.trial-1])
         env.trial += 1
         if env.trial == len(SEED_MAP)+1:
             obs = None
@@ -504,7 +511,7 @@ def env_create():
             api.authenticate_participant(api_key)
             # try to see if an env variable specifies the round. else default
             crowdai_env_difficulty = int(os.getenv("CROWDAI_ENV_DIFFICULTY", 0))
-            crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', False)
+            crowdai_round_id = os.getenv('CROWDAI_ROUND_ID', 29)
             if crowdai_round_id:
                 crowdai_round_id = int(crowdai_round_id)
             if not LOCAL_TEST:
